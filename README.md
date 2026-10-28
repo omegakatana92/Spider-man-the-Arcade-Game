@@ -29,6 +29,17 @@ No executable carries the ROM or any extracted graphics, audio or program bytes.
 <p align="center"><sub>Frames drawn by the game's own video library while the translated program plays
 the test scripts. These screenshots are from authorized local test runs; no ROM is included.</sub></p>
 
+## Download
+
+Built and tested release artifacts are on the
+[Releases page](https://github.com/omegakatana92/Spider-man-the-Arcade-Game/releases):
+
+- `SpiderMan-Windows-x64.zip`
+- `SpiderMan-SteamDeck-x86_64.AppImage`
+- `SpiderMan-Source.zip`
+
+All are ROM-free. The game needs your own MAME `spidman.zip`.
+
 ## Status
 
 | Area | Status |
