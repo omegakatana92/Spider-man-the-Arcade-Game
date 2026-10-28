@@ -1,0 +1,11 @@
+# Coin and start, then a short play: right, attack, left, attack.
+120 press coin1
+180 press start1
+240 hold right1
+300 press button1
+360 release right1
+420 hold left1
+480 release left1
+540 press button1
+600 press start1
+900 end

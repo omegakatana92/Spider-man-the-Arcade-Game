@@ -1,0 +1,181 @@
+diff --git a/decompiler/emit.py b/decompiler/emit.py
+index 022c44c..674259a 100644
+--- a/decompiler/emit.py
++++ b/decompiler/emit.py
+@@ -68,7 +68,7 @@ rotate_with_carry_by byte_swap32 mem_read8 mem_read16 mem_read32 mem_write8 mem_
+ call_code unknown_code invalid_jump invalid_operand frame_wait take_interrupts frame_end halt move_string game_trace game_trace_block
+ GAME_VARIABLES PLAYER_BLOCK WORK_RAM VIDEO_RAM SPRITE_RAM SPRITE_CONTROL PALETTE_RAM MIXER_REGISTERS SOUND_RAM IO_PORTS
+ INTERRUPT_CONTROL RANDOM_GENERATOR TEXT_LAYER TEXT_CELL RAM8S RAM16S RAM32S ROM8S ROM16S ROM32S move_bytes move_halfwords move_bytes_backward
+-move_halfwords_backward set_bytes set_halfwords move_bits_down move_bits_up search_bits_up search_bytes divx_pair
++move_halfwords_backward set_bytes set_halfwords move_bits_down move_bits_up search_bits_up search_bytes search_halfwords divx_pair
+ divux_pair""".split())
+ 
+ 
+@@ -2244,6 +2244,9 @@ class FunctionWriter:
+         if name == "search_bytes":
+             values = ", ".join(self.exact(arg) for arg in args)
+             return [f"search_bytes({values}, &{self.register_set(27)}, &{self.register_set(28)});"]
++        if name == "search_halfwords":
++            values = ", ".join(self.exact(arg) for arg in args)
++            return [f"search_halfwords({values}, &{self.register_set(27)}, &{self.register_set(28)});"]
+         if name == "search_bits_up":
+             values = ", ".join(self.exact(arg) for arg in args[:4])
+             return [f"{self.register_set(args[4].value)} = {name}({values}, &{self.register_set(28)});"]
+diff --git a/decompiler/function.py b/decompiler/function.py
+index 70ec6cd..b92d1f6 100644
+--- a/decompiler/function.py
++++ b/decompiler/function.py
+@@ -14,6 +14,7 @@ function, is a call that comes back to 'back'; a jump table entered that way is
+ """
+ from dataclasses import dataclass, field
+ 
++import game_profile
+ from v60 import disassembler as dis
+ from v60 import ir
+ from v60 import lift
+@@ -84,6 +85,14 @@ class Builder:
+         named = {symbol.name: address for address, symbol in program.symbols.items()}
+         self.frame_wait_loop = named["frame_wait_loop"]
+         self.frame_wait_done = named["frame_wait_done"]
++        if self.frame_wait_loop not in self.analysis.instructions:
++            # the program may run the code in a ROM mirror (its reset vector can land in one)
++            wanted = game_profile.rom.canonical_address(self.frame_wait_loop)
++            copies = [address for address in self.analysis.instructions
++                      if game_profile.rom.canonical_address(address) == wanted]
++            if copies:
++                self.frame_wait_done += min(copies) - self.frame_wait_loop
++                self.frame_wait_loop = min(copies)
+         loop = self.analysis.instructions[self.frame_wait_loop]
+         self.frame_resume = self.frame_wait_loop + loop.length
+         # where the VBLANK handler swaps the running task for the other one (symbols.txt: task_swap up to
+diff --git a/recompile.py b/recompile.py
+index cb8ef60..5cb78a9 100644
+--- a/recompile.py
++++ b/recompile.py
+@@ -233,15 +233,33 @@ class Program:
+             if name not in named:
+                 raise SystemExit(f"symbols.txt: no '{name}'")
+         loop = self.analysis.instructions.get(named["frame_wait_loop"])
+-        if loop is None or not loop.operands:
+-            raise SystemExit("symbols.txt: frame_wait_loop is not an instruction that reads the frame counter")
++        if loop is None:
++            # the program may run the code in a ROM mirror (its reset vector can land in one): take the
++            # copy the analysis decoded, and the wait's end at the same offset from it
++            wanted = game_profile.rom.canonical_address(named["frame_wait_loop"])
++            copies = [address for address in self.analysis.instructions
++                      if game_profile.rom.canonical_address(address) == wanted]
++            if not copies:
++                raise SystemExit("symbols.txt: frame_wait_loop is not a decoded instruction")
++            loop = self.analysis.instructions[min(copies)]
++            named["frame_wait_done"] = loop.address + (named["frame_wait_done"] - named["frame_wait_loop"])
+         block = codegen.Block(self.mem)
+-        counter = block.address_of(loop.operands[0], 0, "frame_ready")
+-        if counter.register is not None:
+-            raise SystemExit("symbols.txt: frame_wait_loop reads a register, not the frame counter")
++        # A program can wait on a flag bit rather than poll a counter (Spider-Man's loop is "clr1 #0,
++        # flag"): then the game's profile names the flag's address (FRAME_WAIT_FLAG), and the wait reads
++        # the byte holding it.
++        flag_address = getattr(game_profile, "FRAME_WAIT_FLAG", None)
++        if flag_address is not None:
++            counter_address = flag_address
++        else:
++            if not loop.operands:
++                raise SystemExit("symbols.txt: frame_wait_loop is not an instruction that reads the frame counter")
++            counter = block.address_of(loop.operands[0], 0, "frame_ready")
++            if counter.register is not None:
++                raise SystemExit("symbols.txt: frame_wait_loop reads a register, not the frame counter")
++            counter_address = counter.address
+         # s32ref raises the line before the poll runs, and the core takes the interrupt there: its frame
+         # returns to the poll (000908)
+-        wait = block.lines + [f"v60_frame_wait({counter.address});",
++        wait = block.lines + [f"v60_frame_wait({codegen.const(counter_address)});",
+                               f"v60_take_interrupts({codegen.const(loop.address)});"]
+         return {
+             loop.address: ["{"] + [f"\t{line}" for line in wait] + ["}"],
+diff --git a/v60/emit_c.py b/v60/emit_c.py
+index 8423321..0a2a0ba 100644
+--- a/v60/emit_c.py
++++ b/v60/emit_c.py
+@@ -192,6 +192,8 @@ class Printer:
+             return f"v60_{name}({', '.join(values)});"
+         if name == "search_bytes":
+             return f"v60_search_bytes({values[0]}, {values[1]}, (uint8_t){values[2]}, {values[3]} != 0);"
++        if name == "search_halfwords":
++            return f"v60_search_halfwords({values[0]}, {values[1]}, (uint16_t){values[2]}, {values[3]} != 0);"
+         if name == "halt":
+             return "/* nothing: MAME's core does not wait on halt */"
+         raise ValueError(f"unknown effect {name}")
+diff --git a/v60/lift.py b/v60/lift.py
+index 2270553..1d4e398 100644
+--- a/v60/lift.py
++++ b/v60/lift.py
+@@ -514,17 +514,19 @@ def lift_data(lifter, instruction):
+         lifter.write_value(dest, 2, lifter.temp(ir.op("helper:read_privileged", (number,), 32), "value"))
+         return True
+ 
+-    if mnemonic in ("schcu.b", "skpcu.b"):
+-        # MAME's opSEARCHUB: the first of 'length' bytes up from the address that is (schcu) or is not
+-        # (skpcu) the value; R28 is left at it and R27 at its index, and Z is set when there is none
++    if mnemonic in ("schcu.b", "skpcu.b", "schcu.h", "skpcu.h"):
++        # MAME's opSEARCHUB/UH: the first of 'length' elements up from the address that is (schcu) or is
++        # not (skpcu) the value; R28 is left at it and R27 at its index, and Z is set when there is none
+         start, length, wanted = instruction.operands
+-        address = lifter.address_of(start, 0, "start")
++        halfwords = mnemonic.endswith(".h")
++        address = lifter.address_of(start, 1 if halfwords else 0, "start")
+         if address.register is not None:
+             raise Unsupported(f"{mnemonic} with a register operand")
+         count = lifter.read_value(length, 2, "length") if length.mode == "reg" else ir.const(length.value)
+-        value = lifter.read_value(wanted, 0, "value")
+-        until_equal = ir.const(1 if mnemonic == "schcu.b" else 0)
+-        emit(ir.Effect("search_bytes", (address.address, count, value, until_equal)))
++        value = lifter.read_value(wanted, 1 if halfwords else 0, "value")
++        until_equal = ir.const(1 if mnemonic.startswith("schcu") else 0)
++        emit(ir.Effect("search_halfwords" if halfwords else "search_bytes",
++                       (address.address, count, value, until_equal)))
+         emit(ir.SetFlag("z", ir.op("eq", (ir.Reg(27), count), 1)))
+         return True
+ 
+diff --git a/z80/function.py b/z80/function.py
+index 8c88c54..d420b3d 100644
+--- a/z80/function.py
++++ b/z80/function.py
+@@ -224,7 +224,9 @@ class Builder:
+             statements.append(ir.Effect("interrupts_on", (ir.const(1 if last else 0, 1),)))
+             return
+         if mnemonic == "im":
+-            if instruction.operands[0].value != 1:
++            # The runtime takes the board's interrupt and calls the handler itself; the mode only says how
++            # the original Z80 found it (IM 1 at 0038, IM 2 through the board's vector).
++            if instruction.operands[0].value not in (0, 1, 2):
+                 raise lift.Unsupported(f"{address:04X}: {instruction.text}")
+             return
+         if mnemonic in ("jp", "jr") and code is None and target is not None:
+diff --git a/z80/lift.py b/z80/lift.py
+index bd7cff2..2053ef9 100644
+--- a/z80/lift.py
++++ b/z80/lift.py
+@@ -412,6 +412,11 @@ def lift_data(lifter, instruction):
+ 
+     if mnemonic == "in":
+         destination, port = operands
++        if port.mode == "port_c":
++            # IN r,(C): the port is in C (the board decodes the low byte)
++            value = lifter.temp(ir.op("helper:port_in", (ir.trunc(reg(BC), 8),), 8), "port")
++            lifter.write8(destination.reg, value)
++            return True
+         if port.mode != "port" or destination.reg != "a":
+             raise Unsupported(f"{instruction.address:04X}: {instruction.text}")
+         # the Z80 puts A on the upper address lines; the board decodes the low byte
+@@ -420,6 +425,11 @@ def lift_data(lifter, instruction):
+ 
+     if mnemonic == "out":
+         port, source = operands
++        if port.mode == "port_c":
++            if source.mode != "reg":
++                raise Unsupported(f"{instruction.address:04X}: {instruction.text}")
++            lifter.emit(ir.Effect("port_out", (ir.trunc(reg(BC), 8), lifter.read8(source.reg))))
++            return True
+         if port.mode != "port" or source.reg != "a":
+             raise Unsupported(f"{instruction.address:04X}: {instruction.text}")
+         lifter.emit(ir.Effect("port_out", (c8(port.value), reg(A))))

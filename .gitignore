@@ -1,0 +1,33 @@
+# ROMs and extracted game data (never commit these)
+rom/
+assets/
+*.zip
+*.eeprom
+*.ini
+*.assets
+
+# Build products and generated sources
+build/
+src/generated/
+dist/
+*.exe
+*.dll
+*.o
+*.obj
+*.a
+*.lib
+*.pdb
+*.ilk
+*.appimage
+*.AppImage
+AppDir/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

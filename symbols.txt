@@ -1,0 +1,21 @@
+# symbols.txt: names of functions, data, variables, board registers, structures and fields for
+# Spider-Man: The Videogame (set spidman). Lines are "ADDRESS KIND NAME"; see tools/core/README.md.
+#
+# Bootstrap: the V60's vector table and reset vector. The recursive analysis starts from the reset
+# vector and the vectors; more names are added as functions and data are identified.
+09F000  data  vector_table       # 256 x 32-bit interrupt vector table (SBR = 0x09F000 on the 24-bit bus)
+09FFF0  func  reset              # V60 reset vector: jmp 0x060006 (the program's boot code)
+
+09F500  func  int_vblank_start
+09F610  func  int_vblank_end
+09F61C  func  int_sound
+09F628  func  int_timer0
+09F640  func  int_timer1
+09F6BC  func  int_default
+09F6C8  func  int_nmi
+
+# ---- the frame loop (VBLANK start sets bit 0 at 208010; func_0003DA polls it) ----
+208010  var   frame_wait_flag  u8    # bit 0 is set by the VBLANK start handler and cleared by the wait
+208168  var   frame_counter    u16   # incremented by the VBLANK start handler
+03EF    code  frame_wait_loop        # clr1 #0, 10[R25]: loops until the VBLANK flag was set
+03F6    code  frame_wait_done        # rsr: the frame's work starts here

@@ -1,0 +1,16 @@
+# sound_symbols.txt: names for the Z80 sound program of Spider-Man: The Videogame (set spidman).
+# Bootstrap: the reset, the board's interrupt entry and the main loop. More names are added as the
+# program is read.
+0000  func  sound_reset
+0038  func  sound_irq
+0075  loop  sound_main_loop
+
+101C  jumps  sound_command_table  32
+0FBA  via    sound_command_table
+
+03F4  jumps  sound_command_table_2  32
+03EA  via    sound_command_table_2
+
+0836  jumps  sound_command_table_3  128
+0936  jumps  sound_command_table_4  128
+06AB  via    sound_command_table_4

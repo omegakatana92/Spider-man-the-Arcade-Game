@@ -1,0 +1,53 @@
+/**
+ *    Name:        data.h
+ *    Description: the game's data in the board's memory, loaded from its assets pack
+ *    Version:     0.2.0
+ *    Created:     13-10-2026
+ *    Modified:    28-10-2026 (Spider-Man region sizes)
+ *    Author:      Sebastian Toyos; adapted for Spider-Man by the Spider-Man recompilation project
+ *
+ *    license:BSD-3-Clause
+ *
+ *    No executable carries the ROM or anything from it. game_data_load fills the regions from the assets
+ *    pack (tools/make_pack.py writes it from the assets extract_assets.py takes out of the player's ROM
+ *    set): every asset where the board's memory has it, then the board's mirrors of its chips. The original
+ *    code is in no region: the C replaces it. The reference (tools/reference) fills them from the ROM set,
+ *    which it runs, when it starts.
+ */
+#ifndef GAME_DATA_H
+#define GAME_DATA_H
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define GAME_PROGRAM_SIZE   0x200000     /* the V60's program space, as it sees it at 000000: the data */
+#define GAME_TILES_SIZE     0x400000     /* 16x16 tiles at 4 bits a pixel, four byte lanes */
+#define GAME_SPRITES_SIZE   0x800000     /* sprite pixels, every 64-bit group eight byte lanes */
+#define GAME_SOUND_SIZE     0x400000     /* the Z80's program space (its data), then three 1 MB banks of
+                                            PCM samples */
+
+extern uint8_t game_program[GAME_PROGRAM_SIZE];
+extern uint8_t game_tiles[GAME_TILES_SIZE];
+extern uint8_t game_sprites[GAME_SPRITES_SIZE];
+extern uint8_t game_sound[GAME_SOUND_SIZE];
+
+typedef enum
+{
+	GAME_DATA_LOADED,
+	GAME_DATA_MISSING,    /* no pack at the path */
+	GAME_DATA_DAMAGED     /* a pack the game cannot read: another version, cut short, or out of bounds */
+} game_data_result;
+
+game_data_result game_data_load(const char *path);
+
+/* The board's mirrors of its chips: what the regions repeat where the board decodes the same chip again */
+void game_data_mirror(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

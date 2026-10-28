@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Spider-Man: The Videogame
+Comment=Native recompilation of Sega's 1991 arcade game
+Exec=spidman
+Icon=spiderman
+Categories=Game;ArcadeGame;
+Terminal=false
+StartupWMClass=spidman
