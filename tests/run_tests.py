@@ -168,13 +168,18 @@ def main():
         gui = binaries / "spidman"
     if gui.exists():
         sound_env = child_environment(binaries)
+        raw_path = RESULTS / "sound.raw"
+        if raw_path.exists():
+            raw_path.unlink()
         sound_env.update({"SPIDERMAN_ROM": rom, "SPIDERMAN_SOUND_TRACE": "1",
+                          "SPIDERMAN_SOUND_RAW": str(raw_path),
                           "SDL_VIDEODRIVER": "dummy", "SDL_AUDIODRIVER": "dummy"})
         try:
-            process = subprocess.Popen([str(gui), "--script", str(script)], cwd=ROOT, env=sound_env,
-                                       text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            process = subprocess.Popen([str(gui), "--frames", "240", "--script", str(script)],
+                                       cwd=ROOT, env=sound_env, text=True,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
-                _, error = process.communicate(timeout=8)
+                _, error = process.communicate(timeout=15)
             except subprocess.TimeoutExpired:
                 process.kill()
                 _, error = process.communicate()
@@ -183,6 +188,13 @@ def main():
                 report(max(peaks) > 0, f"sound made samples in gameplay (peak {max(peaks)})")
             else:
                 print("SKIP  sound: this build has no reference sound fallback")
+            if raw_path.exists():
+                expected = 240 * (48000 // 60) * 4
+                size = raw_path.stat().st_size
+                report(abs(size - expected) <= 4 * 800,
+                       f"sound duration matches 60 Hz ({size} bytes, expected {expected})")
+            else:
+                print("SKIP  sound: no raw capture")
         except OSError as problem:
             report(False, f"sound launch failed: {problem}")
     else:

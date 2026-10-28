@@ -130,6 +130,11 @@ if (-not $NoPackage) {
     New-Item -ItemType Directory -Path $stage | Out-Null
     Copy-Item (Join-Path $bin "spidman.exe") $stage
     Copy-Item (Join-Path $bin "SDL2.dll") $stage
+    foreach ($dll in "libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll") {
+        $source = Join-Path $bin $dll
+        if (-not (Test-Path $source)) { $source = Join-Path $MsysRoot "mingw64\bin\$dll" }
+        if (Test-Path $source) { Copy-Item $source $stage }
+    }
     Copy-Item (Join-Path $root "README.md") $stage
     Copy-Item (Join-Path $root "LICENSE") $stage
     Copy-Item (Join-Path $root "BUILD_STATUS.md") $stage

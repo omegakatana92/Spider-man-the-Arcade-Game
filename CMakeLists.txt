@@ -145,6 +145,16 @@ if(TARGET spidman_program)
 		if(WIN32)
 			add_custom_command(TARGET spidman POST_BUILD
 				COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:SDL2::SDL2> $<TARGET_FILE_DIR:spidman>)
+			# The C++ sound fallback makes the executable depend on the MinGW runtime; keep the three
+			# DLLs beside it so the release runs on a machine without MSYS2.
+			get_filename_component(SPIDERMAN_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
+			foreach(runtime libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll)
+				if(EXISTS "${SPIDERMAN_MINGW_BIN}/${runtime}")
+					add_custom_command(TARGET spidman POST_BUILD
+						COMMAND ${CMAKE_COMMAND} -E copy_if_different
+							"${SPIDERMAN_MINGW_BIN}/${runtime}" "$<TARGET_FILE_DIR:spidman>")
+				endif()
+			endforeach()
 		endif()
 	else()
 		message(STATUS "No SDL2: the window port (spidman) is not built")

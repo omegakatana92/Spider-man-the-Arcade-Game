@@ -42,7 +42,7 @@ Artifacts:
 
 | File | Size | Notes |
 |---|---:|---|
-| `build/bin/spidman.exe` | 1,461,198 bytes | SDL2 window port, with the reference sound fallback |
+| `build/bin/spidman.exe` | 1,461,258 bytes | SDL2 window port, with the reference sound fallback |
 | `build/bin/SDL2.dll` | 2,412,441 bytes | copied beside the executable |
 | `build/bin/spidman_headless.exe` | 838,220 bytes | deterministic test runner |
 | `build/bin/s32ref.exe` | 1,248,792 bytes | MAME V60 reference |
@@ -116,6 +116,15 @@ sound: frame 420, 932 samples at 55930 Hz, peak 3897
 Attract mode is silent (peak 0); gameplay is not. The reference `s32ref --sound-wav`
 produces the same non-silent stream (peak 7340 over 900 frames).
 
+**Sound fix (v0.1.1).** The SDL port originally generated 2,400 output samples per
+60 Hz frame (50 ms of audio) instead of 800 (16.67 ms), so the audio queue grew,
+hit its cap, and whole frames were dropped: fast/choppy sound. It now produces
+exactly `OUTPUT_RATE / 60 = 800` samples per frame and holds the last source sample
+across the sub-sample frame boundary, keeping the 48 kHz stream continuous. The test
+asserts **768,000 bytes for 240 frames** (exactly 4 seconds), and the Windows package
+now bundles `libgcc_s_seh-1.dll`, `libstdc++-6.dll` and `libwinpthread-1.dll` so the
+C++ sound fallback runs on a clean Windows machine without MSYS2.
+
 **Native sound is still incomplete.** The Z80 program is decoded (`z80/`), the main
 loop is at `0x0075`, the command dispatch tables at `0x101C`, `0x03F4`,
 `0x0836`/`0x0936`, and the chips are modelled (`runtime/src/rf5c68.c`,
@@ -173,8 +182,8 @@ CMake supports MSVC, but the verified build here is MinGW-w64. MSVC was not test
 
 | Artifact | Size | Verified |
 |---|---:|---|
-| `dist/SpiderMan-Windows-x64.zip` | 1,464,903 bytes | built, extracted to a clean folder, launched with the ROM; ROM-free |
-| `dist/SpiderMan-SteamDeck-x86_64.AppImage` | 1,361,088 bytes | built in WSL2 Ubuntu 22.04, unpacked, launched with the ROM (status 124 = running), sound peak verified |
+| `dist/SpiderMan-Windows-x64.zip` | 2,495,868 bytes | built, extracted to a clean folder, launched with the ROM; ROM-free |
+| `dist/SpiderMan-SteamDeck-x86_64.AppImage` | 1,365,184 bytes | built in WSL2 Ubuntu 22.04, unpacked, launched with the ROM (status 124 = running), sound peak verified |
 | `dist/SpiderMan-Source.zip` | ~1.07 MB | 257 files; no ROM, build products or private artifacts |
 
 None of these files is committed or uploaded. Publishing needs explicit authorization.
@@ -197,6 +206,7 @@ attract: 1500/1500 state, 1500/1500 video identical
 coin_start: 901/901 state, 901/901 video identical
 PASS
 ```
+
 
 
 

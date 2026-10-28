@@ -47,6 +47,7 @@
 
 #define PLAYERS            4
 #define OUTPUT_RATE        48000
+#define SAMPLES_PER_FRAME  (OUTPUT_RATE / S32_FRAME_RATE)
 #define QUEUE_FRAMES_MAX   6          /* audio queued beyond this many frames is dropped */
 #define ROM_FILE           "spidman.zip"
 
@@ -60,6 +61,10 @@ static double shown_scale;
 static char eeprom_path[1024];
 static bool quit_requested;
 static s32_script *script;      /* --script: deterministic controls for a test run */
+static uint64_t frames_wanted;  /* --frames: stop after this many frames (tests) */
+#ifdef SPIDERMAN_SOUND
+static FILE *sound_raw;         /* SPIDERMAN_SOUND_RAW: 48 kHz stereo s16le, for tests */
+#endif
 
 /* What the controls say, gathered between frames */
 static struct
@@ -337,23 +342,43 @@ static void keep_samples(const int16_t *samples, size_t count)
 
 static void sample_at(double position, double out[2])
 {
-	const size_t index = (size_t)position;
-	const double fraction = position - (double)index;
+	size_t index = (size_t)position;
 
-	for (int side = 0; side < 2; side++)
+	if (mixed.count == 0)
 	{
-		const double here = mixed.samples[index * 2 + side];
-		const double next = mixed.samples[(index + 1) * 2 + side];
-		out[side] = here + (next - here) * fraction;
+		out[0] = out[1] = 0.0;
+		return;
+	}
+	if (index >= mixed.count)
+		index = mixed.count - 1;
+	if (index + 1 >= mixed.count)
+	{
+		/* one source sample short at a frame boundary: hold the last one for the fraction of a
+		   sample, so the output keeps exactly 48 kHz instead of dropping a sample and underrunning */
+		out[0] = mixed.samples[index * 2];
+		out[1] = mixed.samples[index * 2 + 1];
+		return;
+	}
+	{
+		const double fraction = position - (double)index;
+
+		for (int side = 0; side < 2; side++)
+		{
+			const double here = mixed.samples[index * 2 + side];
+			const double next = mixed.samples[(index + 1) * 2 + side];
+			out[side] = here + (next - here) * fraction;
+		}
 	}
 }
 
 static void drop_used(void)
 {
-	const size_t used = (size_t)mixed.position;
+	size_t used = (size_t)mixed.position;
 
 	if (!used)
 		return;
+	if (used > mixed.count)
+		used = mixed.count;
 	memmove(mixed.samples, mixed.samples + used * 2, (mixed.count - used) * 2 * sizeof(int16_t));
 	mixed.count -= used;
 	mixed.position -= (double)used;
@@ -363,7 +388,7 @@ static void drop_used(void)
    RF5C68 and YM3438 as MAME/ymfm make them), resampled to 48 kHz at the settings' volume. */
 static void play_frame(void)
 {
-	static int16_t out[OUTPUT_RATE / 20 * 2];
+	static int16_t out[SAMPLES_PER_FRAME * 2];
 	size_t made = 0, count = 0;
 	const int16_t *samples;
 
@@ -382,12 +407,10 @@ static void play_frame(void)
 		        (unsigned long long)program_frames(), count, game_sound_rate(), peak);
 	}
 	keep_samples(samples, count);
-	while (made < OUTPUT_RATE / 20)
+	while (made < SAMPLES_PER_FRAME)
 	{
 		double value[2];
 
-		if (mixed.position + 1 >= (double)mixed.count)
-			break;
 		sample_at(mixed.position, value);
 		for (int side = 0; side < 2; side++)
 		{
@@ -398,6 +421,8 @@ static void play_frame(void)
 		made++;
 	}
 	drop_used();
+	if (sound_raw)
+		fwrite(out, sizeof(int16_t), made * 2, sound_raw);
 	if (audio && SDL_GetQueuedAudioSize(audio) < (Uint32)(OUTPUT_RATE / 60 * 4 * QUEUE_FRAMES_MAX))
 		SDL_QueueAudio(audio, out, (Uint32)(made * 2 * sizeof(int16_t)));
 }
@@ -431,6 +456,11 @@ static void on_frame_done(void)
 #ifdef SPIDERMAN_SOUND
 	play_frame();
 #endif
+	if (frames_wanted && program_frames() >= frames_wanted)
+	{
+		program_stop();
+		return;
+	}
 	if (program_frames() % 600 == 0)
 		save_eeprom();
 	if (program_frames() % 30 == 0 && settings_reread())
@@ -518,6 +548,8 @@ int main(int argc, char **argv)
 			if (!script)
 				return fail("The control script cannot be read.", error);
 		}
+		else if (strcmp(argv[index], "--frames") == 0 && index + 1 < argc)
+			frames_wanted = strtoull(argv[++index], NULL, 10);
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) != 0)
 		return fail("SDL could not start.", SDL_GetError());
 	base = SDL_GetBasePath();
@@ -571,10 +603,21 @@ int main(int argc, char **argv)
 	program_reset();
 	program_frame_done = on_frame_done;
 	next_frame = SDL_GetPerformanceCounter();
+#ifdef SPIDERMAN_SOUND
+	{
+		const char *raw_path = getenv("SPIDERMAN_SOUND_RAW");
+		if (raw_path)
+			sound_raw = fopen(raw_path, "wb");
+	}
+#endif
 
 	program_run();
 
 	save_eeprom();
+#ifdef SPIDERMAN_SOUND
+	if (sound_raw)
+		fclose(sound_raw);
+#endif
 	if (audio)
 		SDL_CloseAudioDevice(audio);
 	for (int player = 0; player < PLAYERS; player++)
