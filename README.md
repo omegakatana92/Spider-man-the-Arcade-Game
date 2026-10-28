@@ -1,4 +1,4 @@
-# Spider-Man: The Videogame ??? native recompilation
+# Spider-Man: The Videogame — native recompilation
 
 A native, ROM-free reconstruction of Sega's 1991 arcade game **Spider-Man: The
 Videogame** (Sega System 32, 4-player board) for Windows x64 and Linux x86_64
@@ -14,6 +14,11 @@ The **sound CPU is the one emulated component**: the original Z80 driver current
 runs on MAME's Z80 core (BSD-3-Clause) as a documented fallback until its native
 translation is complete. The main game logic is native. See
 [BUILD_STATUS.md](BUILD_STATUS.md).
+
+This project is built on **[arcade-decomp](https://github.com/cheviman/arcade-decomp)**,
+created by **[Sebastian Toyos (@cheviman)](https://github.com/cheviman)**. The
+decompiler, V60/Z80 frontends, analysis tools and System 32 reference are his work;
+see [Credits](#credits).
 
 The repository contains **no game data**. You supply your own legally obtained MAME
 `spidman.zip`; the game verifies it by CRC32 and lays the ROMs out as the board does.
@@ -44,17 +49,17 @@ All are ROM-free. The game needs your own MAME `spidman.zip`.
 
 | Area | Status |
 |---|---|
-| ROM verification (MAME set `spidman`, 20 files, CRC32 + SHA-1) | **Working** ??? 20/20 |
-| V60 disassembly and control-flow analysis | **Working** ??? 6,273 distinct instructions, 718 functions, no invalid/overlapping paths |
-| Native V60 translation (instruction-level C) | **Working** ??? 16,442 instructions written |
+| ROM verification (MAME set `spidman`, 20 files, CRC32 + SHA-1) | **Working** — 20/20 |
+| V60 disassembly and control-flow analysis | **Working** — 6,273 distinct instructions, 718 functions, no invalid/overlapping paths |
+| Native V60 translation (instruction-level C) | **Working** — 16,442 instructions written |
 | Board model (memory, IRQ, timers, I/O, PPI, EEPROM, video) | **Working** |
-| Frame-for-frame comparison with MAME (`s32ref`) | **Passing** ??? state and picture identical for 1,500 attract frames and 900 coin/start/gameplay frames |
+| Frame-for-frame comparison with MAME (`s32ref`) | **Passing** — state and picture identical for 1,500 attract frames and 900 coin/start/gameplay frames |
 | SDL2 window, keyboard, 4 game controllers | **Working** (Windows build tested) |
 | Windows x64 `.exe` | **Built and run** |
 | Linux x86_64 / Steam Deck AppImage | **Built and verified** in WSL2 Ubuntu 22.04; AppImage runs with the ROM. Physical Steam Deck hardware not available for testing |
-| Sound | **Working via a documented fallback** ??? the original Z80 program runs on MAME's Z80 core with MAME's RF5C68 and ymfm's YM3438 (BSD-3-Clause). This sound CPU is **emulated**, not native; the native Z80 translation is the next step. Sound is verified to produce non-silent output in gameplay |
-| Readable high-level C | **Partial** ??? the decompiler stops on an unidentified computed jump; the instruction-level translation is the functional build |
-| ROM-free release | **Prepared** ??? no ROM data in the tree; release artifacts contain only code |
+| Sound | **Working via a documented fallback** — the original Z80 program runs on MAME's Z80 core with MAME's RF5C68 and ymfm's YM3438 (BSD-3-Clause). This sound CPU is **emulated**, not native; the native Z80 translation is the next step. Sound is verified to produce non-silent output in gameplay |
+| Readable high-level C | **Partial** — the decompiler stops on an unidentified computed jump; the instruction-level translation is the functional build |
+| ROM-free release | **Prepared** — no ROM data in the tree; release artifacts contain only code |
 
 The full, honest build/test record is in [BUILD_STATUS.md](BUILD_STATUS.md).
 
@@ -108,7 +113,7 @@ The game also accepts:
 The runtime checks every file by CRC32 before using it. A wrong revision, a renamed
 file or an incomplete set is rejected with the missing file's name.
 
-## Build ??? Windows x64
+## Build — Windows x64
 
 From a shell where CMake, Python and the compiler are on `PATH`:
 
@@ -130,14 +135,14 @@ cmake --build build/cmake
 
 Outputs in `build/bin/`:
 
-- `spidman.exe` ??? the game (SDL2, `SDL2.dll` copied beside it)
-- `spidman_headless.exe` ??? deterministic test runner, no window
-- `s32ref.exe` ??? reference: the original V60 program on MAME's core, for comparisons
-- `oracle.exe`, `oracle_z80.exe` ??? MAME disassembler oracles
+- `spidman.exe` — the game (SDL2, `SDL2.dll` copied beside it)
+- `spidman_headless.exe` — deterministic test runner, no window
+- `s32ref.exe` — reference: the original V60 program on MAME's core, for comparisons
+- `oracle.exe`, `oracle_z80.exe` — MAME disassembler oracles
 
 Run the game with `spidman.zip` beside `spidman.exe`, or set `SPIDERMAN_ROM`.
 
-## Build ??? Linux / Steam Deck AppImage
+## Build — Linux / Steam Deck AppImage
 
 On Linux (or WSL/SteamOS):
 
@@ -228,7 +233,7 @@ docs/                       ROM analysis, controls, architecture, build status
    vector and the interrupt vectors.
 2. `tools/recompile.py` splits it into functions and writes C for every instruction
    (`build/generated/`). The C keeps the V60 registers and flags, but is ordinary C
-   compiled by the host compiler ??? the CPU is not interpreted.
+   compiled by the host compiler — the CPU is not interpreted.
 3. `runtime/src/v60.c` provides the multi-instruction helpers (string moves, bit
    strings, searches, division, task switches, interrupts, frame timing).
 4. `runtime/src/machine.c`, `io.c`, `video.c`, `sound*.c` model the board.
@@ -268,12 +273,29 @@ of each file. No ROM or game data is licensed or distributed here.
 
 ## Credits
 
-- **arcade-decomp** and **segasonic-decomp** by Sebastian Toyos (BSD-3-Clause) ??? the
-  V60/Z80 tooling, decompiler, System 32 board model, video library, sound chips and
-  SDL2 port structure.
-- **MAME** (BSD-3-Clause) ??? System 32 documentation and drivers, V60/Z80 cores, video
+### arcade-decomp — Sebastian Toyos ([@cheviman](https://github.com/cheviman))
+
+**[arcade-decomp](https://github.com/cheviman/arcade-decomp)** is the toolkit this
+project is built on: the NEC V60 and Z80 decoders, disassemblers and lifters, the
+decompiler, the static analysis, the structure and noise checks, the asset formats,
+and the System 32 reference that runs the original program on MAME's cores. It was
+created by **Sebastian Toyos**, GitHub [@cheviman](https://github.com/cheviman), and is
+licensed BSD-3-Clause. This recompilation would not exist without his work; the local
+changes needed for Spider-Man are recorded in `tools/core-spidman.patch` and remain
+under the same BSD-3-Clause terms.
+
+He also created **[segasonic-decomp](https://github.com/cheviman/segasonic-decomp)**,
+the Sega System 32 decompilation whose board model, video library, YM3438/RF5C68
+support, scripted test format and SDL2 port structure were adapted for this project.
+That work is BSD-3-Clause too, and its copyright notices are kept in the files.
+
+### Other credits
+
+- **MAME** (BSD-3-Clause) — System 32 documentation and drivers, V60/Z80 cores, video
   and RF5C68 reference.
-- **ymfm** (BSD-3-Clause) ??? YM3438 reference.
-- **SDL2** (zlib) ??? window, input, audio.
+- **ymfm** (BSD-3-Clause) — YM3438 reference.
+- **SDL2** (zlib) — window, input, audio.
+- **Marvel / Sega** — Spider-Man and the original 1991 arcade game; this is an
+  unofficial, noncommercial preservation project.
 
 

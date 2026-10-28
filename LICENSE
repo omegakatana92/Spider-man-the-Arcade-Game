@@ -23,7 +23,9 @@ parts keep their own licenses and copyright notices; they are not relicensed her
 ### arcade-decomp (`tools/core/`)
 
 The decompiler, V60/Z80 frontends, analysis tools and asset formats are
-**BSD 3-Clause**, Copyright (c) Sebastian Toyos. See `tools/core/LICENSE` and the
+**BSD 3-Clause**, Copyright (c) **Sebastian Toyos** — creator of
+[arcade-decomp](https://github.com/cheviman/arcade-decomp), GitHub
+[@cheviman](https://github.com/cheviman). See `tools/core/LICENSE` and the
 headers of the individual files. This project uses arcade-decomp as a Git submodule
 and has local changes for the Spider-Man program (frame-wait flag, ROM mirrors,
 halfword search, Z80 IM 2 and `(C)` port I/O). Those changes are offered under the
