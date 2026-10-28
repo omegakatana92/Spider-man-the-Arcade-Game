@@ -175,7 +175,7 @@ CMake supports MSVC, but the verified build here is MinGW-w64. MSVC was not test
 |---|---:|---|
 | `dist/SpiderMan-Windows-x64.zip` | 1,464,903 bytes | built, extracted to a clean folder, launched with the ROM; ROM-free |
 | `dist/SpiderMan-SteamDeck-x86_64.AppImage` | 1,361,088 bytes | built in WSL2 Ubuntu 22.04, unpacked, launched with the ROM (status 124 = running), sound peak verified |
-| `dist/SpiderMan-Source.zip` | 1,065,421 bytes | 257 files; no ROM, build products or private artifacts |
+| `dist/SpiderMan-Source.zip` | ~1.07 MB | 257 files; no ROM, build products or private artifacts |
 
 None of these files is committed or uploaded. Publishing needs explicit authorization.
 
@@ -197,6 +197,7 @@ attract: 1500/1500 state, 1500/1500 video identical
 coin_start: 901/901 state, 901/901 video identical
 PASS
 ```
+
 
 
 
